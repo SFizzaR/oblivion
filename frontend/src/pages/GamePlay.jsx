@@ -155,7 +155,7 @@ function GamePlay() {
     }
 
     try {
-      const url = `http://127.0.0.1:5000/api/round1_interview?game_id=${gameId}`;
+      const url = `https://oblivion-o73e.onrender.com/api/round1_interview?game_id=${gameId}`;
       console.log(`Fetching ${url} with method GET`);
       const res = await fetch(url, {
         method: "GET",
@@ -224,7 +224,7 @@ function GamePlay() {
 
   const fetchAlibis = async () => {
     try {
-      const url = `http://127.0.0.1:5000/api/round2_alibis?game_id=${gameId}`;
+      const url = `https://oblivion-o73e.onrender.com/api/round2_alibis?game_id=${gameId}`;
       console.log(`Fetching ${url} with method GET`);
       const res = await fetch(url, {
         method: "GET",
@@ -264,7 +264,7 @@ function GamePlay() {
 
   const fetchAiSuggestion = async () => {
     try {
-      const url = `http://127.0.0.1:5000/api/round3_get_suggestion?game_id=${encodeURIComponent(
+      const url = `https://oblivion-o73e.onrender.com/api/round3_get_suggestion?game_id=${encodeURIComponent(
         gameId
       )}`;
       console.log(`Fetching ${url} with method GET to get AI suggestion`);
@@ -352,7 +352,7 @@ function GamePlay() {
         `Verifying alibi for ${suspectName} (backend: ${backendSuspectName}) with gameId: ${gameId}`
       );
 
-      const url = `http://127.0.0.1:5000/api/round3_verify_alibi`;
+      const url = `https://oblivion-o73e.onrender.com/api/round3_verify_alibi`;
       const requestBody = JSON.stringify({
         suspect_name: backendSuspectName,
         game_id: gameId,
@@ -428,7 +428,7 @@ function GamePlay() {
 
   const fetchFinalDeduction = async () => {
     try {
-      const url = `http://127.0.0.1:5000/api/round4_final_deduction`;
+      const url = `https://oblivion-o73e.onrender.com/api/round4_final_deduction`;
       console.log(`Fetching ${url} with method GET`);
       const res = await fetch(url, {
         method: "GET",
@@ -479,7 +479,7 @@ function GamePlay() {
       };
       console.log("Submitting score:", scoreData);
 
-      const res = await fetch("http://127.0.0.1:5001/submit_score", {
+      const res = await fetch("https://oblivion-o73e.onrender.com/submit_score", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -496,7 +496,7 @@ function GamePlay() {
       console.log("Score submission response:", data);
 
       // Fetch leaderboard
-      const leaderboardRes = await fetch("http://127.0.0.1:5001/leaderboard");
+      const leaderboardRes = await fetch("https://oblivion-o73e.onrender.com/leaderboard");
       if (!leaderboardRes.ok) {
         throw new Error("Failed to fetch leaderboard.");
       }
@@ -525,7 +525,7 @@ function GamePlay() {
         return;
       }
 
-      const url = `http://127.0.0.1:5000/api/make_guess`;
+      const url = `https://oblivion-o73e.onrender.com/api/make_guess`;
       console.log(
         `Fetching ${url} with method POST for suspect: ${selectedSuspect}, weapon: ${selectedWeapon}, current triesLeft: ${triesLeft}`
       );
