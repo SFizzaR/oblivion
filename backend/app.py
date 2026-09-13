@@ -18,7 +18,7 @@ db = client["aiproject"]
 
 # Enable CORS for all routes
 CORS(app, 
-     origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+     origins=["http://localhost:5173", "http://127.0.0.1:5173","https://oblivion-sigma.vercel.app"],
      methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
      allow_headers=["Content-Type"],
      supports_credentials=True)
