@@ -42,7 +42,7 @@ function Home() {
   const startGame = async () => {
     console.log("Start Game button clicked from Home!");
     try {
-      const response = await fetch("http://127.0.0.1:5000/api/start_game", {
+      const response = await fetch("https://oblivion-o73e.onrender.com/api/start_game", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
