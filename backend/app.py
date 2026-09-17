@@ -18,14 +18,17 @@ db = client["aiproject"]
 
 # Enable CORS for all routes
 CORS(app, 
-     origins=["http://localhost:5173", "http://127.0.0.1:5173","https://oblivion-sigma.vercel.app"],
+     origins=["http://localhost:5173", "http://127.0.0.1:5173"],
      methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
      allow_headers=["Content-Type"],
      supports_credentials=True)
 
 
-from interview import interview_bp
+from interview import interview_bp, set_db
 app.register_blueprint(interview_bp, url_prefix='/api')
+
+set_db(db)
+
 
 # Define schema validation for the 'users' collection
 def setup_users_collection():
@@ -75,11 +78,84 @@ def setup_users_collection():
         db.users.create_index("username", unique=True)
 
 # Initialize the database and collection
+def setup_games_collection():
+    if "games" not in db.list_collection_names():
+        validator = {
+            "$jsonSchema": {
+                "bsonType": "object",
+                "required": ["game_id", "killer_name", "killer_weapon", "fake_locations", "liars", "alibi_claims", "checked_suspects", "guess_count", "status"],
+                "properties": {
+                    "game_id": {
+                        "bsonType": "string",
+                        "description": "Unique game identifier"
+                    },
+                    "killer_name": {
+                        "bsonType": "string",
+                        "description": "Name of the killer"
+                    },
+                    "killer_weapon": {
+                        "bsonType": "string",
+                        "description": "The murder weapon"
+                    },
+                    "fake_locations": {
+                        "bsonType": "object",
+                        "description": "Map of suspect names to their claimed locations"
+                    },
+                    "lie_counter": {
+                        "bsonType": "object",
+                        "description": "Count of lies per suspect"
+                    },
+                    "liars": {
+                        "bsonType": "array",
+                        "description": "List of suspects who are lying",
+                        "items": {"bsonType": "string"}
+                    },
+                    "alibi_claims": {
+                        "bsonType": "object",
+                        "description": "Alibi claims between suspects"
+                    },
+                    "checked_suspects": {
+                        "bsonType": "array",
+                        "description": "List of verified suspects",
+                        "items": {"bsonType": "string"}
+                    },
+                    "valid_suspects_csp": {
+                        "bsonType": "array",
+                        "description": "Valid suspects from CSP algorithm",
+                        "items": {"bsonType": "string"}
+                    },
+                    "guess_count": {
+                        "bsonType": "int",
+                        "description": "Number of wrong guesses",
+                        "minimum": 0,
+                        "maximum": 3
+                    },
+                    "status": {
+                        "enum": ["active", "won", "lost"],
+                        "description": "Game status"
+                    },
+                    "created_at": {
+                        "bsonType": "date",
+                        "description": "When game was created"
+                    },
+                    "updated_at": {
+                        "bsonType": "date",
+                        "description": "Last update time"
+                    }
+                }
+            }
+        }
+        db.create_collection("games", validator=validator)
+        db.games.create_index("game_id", unique=True)
+        db.games.create_index("created_at")
+        print("Created 'games' collection with validation")
+
 try:
     setup_users_collection()
-    print("Successfully initialized 'users' collection with schema validation.")
+    setup_games_collection()
+    print("Successfully initialized 'users' and 'games' collections with schema validation.")
 except Exception as e:
-    print(f"Failed to initialize 'users' collection: {str(e)}")
+    print(f"Failed to initialize collections: {str(e)}")
 
 # Routes
 @app.route('/add_user', methods=['POST'])
@@ -104,6 +180,7 @@ def add_user():
 def submit_score():
     try:
         data = request.json
+       
         # Validate keys
         required_keys = ['username', 'time', 'tries']
         if not data or not all(key in data for key in required_keys):
