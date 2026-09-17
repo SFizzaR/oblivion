@@ -48,7 +48,7 @@ function GamePlay() {
   const initialGameId = localStorage.getItem("gameId");
   console.log(
     "GamePlay loaded with initialGameId from localStorage:",
-    initialGameId
+    initialGameId,
   );
 
   // State
@@ -114,7 +114,7 @@ function GamePlay() {
   }, [showUsernamePrompt]);
 
   useEffect(() => {
-    // Start timer only when timerStarted is true and timeLeft > 0
+    let timer;
     if (!timerStarted || timeLeft <= 0) return;
 
     const interval = setInterval(() => {
@@ -122,8 +122,8 @@ function GamePlay() {
         if (prev <= 1) {
           clearInterval(interval);
           console.log("Time is up! Game Over.");
-          setTimerStarted(false); // Stop the timer
-          // Show username prompt after 3 seconds
+          setTimerStarted(false);
+          markGameComplete("timeout"); // ✅ ADD THIS
           setTimeout(() => {
             setShowUsernamePrompt(true);
           }, 3000);
@@ -136,6 +136,69 @@ function GamePlay() {
     return () => clearInterval(interval);
   }, [timerStarted, timeLeft]);
 
+  useEffect(() => {
+    const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+    let inactivityTimer;
+
+    const resetInactivityTimer = () => {
+      clearTimeout(inactivityTimer);
+      inactivityTimer = setTimeout(() => {
+        console.log("Inactivity timeout reached. Marking game as inactive.");
+        markGameInactive();
+      }, INACTIVITY_TIMEOUT);
+    };
+
+    // Set up initial timer
+    resetInactivityTimer();
+
+    // Track user activity
+    const handleActivity = () => {
+      resetInactivityTimer();
+    };
+
+    // Listen for user activity
+    window.addEventListener("click", handleActivity);
+    window.addEventListener("keydown", handleActivity);
+    window.addEventListener("mousemove", handleActivity);
+
+    return () => {
+      clearTimeout(inactivityTimer);
+      window.removeEventListener("click", handleActivity);
+      window.removeEventListener("keydown", handleActivity);
+      window.removeEventListener("mousemove", handleActivity);
+    };
+  }, [gameId]);
+
+  const markGameInactive = async () => {
+    try {
+      const url = `http://127.0.0.1:5001/api/mark_game_inactive`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          game_id: gameId,
+        }),
+      });
+
+      if (!res.ok) {
+        console.error("Failed to mark game inactive:", res.status);
+      } else {
+        console.log("Game marked as inactive");
+      }
+
+      // Clear localStorage and redirect
+      localStorage.removeItem("gameId");
+      navigate("/");
+    } catch (e) {
+      console.error("Error marking game inactive:", e.message);
+      // Still redirect even if API call fails
+      localStorage.removeItem("gameId");
+      navigate("/");
+    }
+  };
+
   const formatTime = (seconds) => {
     const min = String(Math.floor(seconds / 60)).padStart(2, "0");
     const sec = String(seconds % 60).padStart(2, "0");
@@ -145,17 +208,17 @@ function GamePlay() {
   const fetchInitialData = async () => {
     if (!gameId) {
       console.log(
-        "No gameId available for fetchInitialData, redirecting to home..."
+        "No gameId available for fetchInitialData, redirecting to home...",
       );
       setError(
-        "No active game found. Please start a new game from the homepage."
+        "No active game found. Please start a new game from the homepage.",
       );
       setTimeout(() => navigate("/"), 3000); // Redirect after 3 seconds
       return;
     }
 
     try {
-      const url = `https://oblivion-o73e.onrender.com/api/round1_interview?game_id=${gameId}`;
+      const url = `http://127.0.0.1:5001/api/round1_interview?game_id=${gameId}`;
       console.log(`Fetching ${url} with method GET`);
       const res = await fetch(url, {
         method: "GET",
@@ -163,7 +226,7 @@ function GamePlay() {
 
       if (!res.ok) {
         console.log(
-          `HTTP error! Status: ${res.status}, Status Text: ${res.statusText}`
+          `HTTP error! Status: ${res.status}, Status Text: ${res.statusText}`,
         );
         const errorData = await res.json().catch(() => ({}));
         console.log("Error response from /round1_interview:", errorData);
@@ -173,12 +236,12 @@ function GamePlay() {
           errorData.message?.includes("Invalid or missing game_id")
         ) {
           console.log(
-            "Invalid game_id detected, clearing localStorage and redirecting to home..."
+            "Invalid game_id detected, clearing localStorage and redirecting to home...",
           );
           localStorage.removeItem("gameId");
           setGameId(null);
           setError(
-            "Invalid game session. Please start a new game from the homepage."
+            "Invalid game session. Please start a new game from the homepage.",
           );
           setTimeout(() => navigate("/"), 3000);
           return;
@@ -187,7 +250,7 @@ function GamePlay() {
         throw new Error(
           `HTTP error! Status: ${res.status}, Message: ${
             errorData.message || res.statusText
-          }`
+          }`,
         );
       }
 
@@ -202,13 +265,13 @@ function GamePlay() {
 
       console.log(
         "Successfully fetched suspect dialogues:",
-        data.suspect_dialogues
+        data.suspect_dialogues,
       );
       setSuspectDialogues(data.suspect_dialogues);
     } catch (e) {
       console.log("Fetch error for /round1_interview:", e.message);
       setError(
-        "Failed to fetch suspect dialogues. Please ensure the backend is running and try again from the homepage."
+        "Failed to fetch suspect dialogues. Please ensure the backend is running and try again from the homepage.",
       );
       setTimeout(() => navigate("/"), 3000);
     }
@@ -224,7 +287,7 @@ function GamePlay() {
 
   const fetchAlibis = async () => {
     try {
-      const url = `https://oblivion-o73e.onrender.com/api/round2_alibis?game_id=${gameId}`;
+      const url = `http://127.0.0.1:5001/api/round2_alibis?game_id=${gameId}`;
       console.log(`Fetching ${url} with method GET`);
       const res = await fetch(url, {
         method: "GET",
@@ -232,7 +295,7 @@ function GamePlay() {
 
       if (!res.ok) {
         console.log(
-          `HTTP error! Status: ${res.status}, Status Text: ${res.statusText}`
+          `HTTP error! Status: ${res.status}, Status Text: ${res.statusText}`,
         );
         throw new Error(`HTTP error! Status: ${res.status}`);
       }
@@ -264,8 +327,8 @@ function GamePlay() {
 
   const fetchAiSuggestion = async () => {
     try {
-      const url = `https://oblivion-o73e.onrender.com/api/round3_get_suggestion?game_id=${encodeURIComponent(
-        gameId
+      const url = `http://127.0.0.1:5001/api/round3_get_suggestion?game_id=${encodeURIComponent(
+        gameId,
       )}`;
       console.log(`Fetching ${url} with method GET to get AI suggestion`);
       const res = await fetch(url, {
@@ -277,7 +340,7 @@ function GamePlay() {
 
       if (!res.ok) {
         console.log(
-          `HTTP error! Status: ${res.status}, Status Text: ${res.statusText}`
+          `HTTP error! Status: ${res.status}, Status Text: ${res.statusText}`,
         );
         throw new Error(`HTTP error! Status: ${res.status}`);
       }
@@ -285,7 +348,7 @@ function GamePlay() {
       const data = await res.json();
       console.log(
         "Response from /round3_get_suggestion for AI suggestion:",
-        data
+        data,
       );
 
       if (data.status === "error") {
@@ -302,20 +365,20 @@ function GamePlay() {
           const suggestionFrontendName = Object.keys(SUSPECT_NAME_MAPPING).find(
             (key) =>
               SUSPECT_NAME_MAPPING[key].toLowerCase() === suggestionLower ||
-              key === suggestionLower
+              key === suggestionLower,
           );
           console.log("Mapped frontend name:", suggestionFrontendName);
 
           if (suggestionFrontendName) {
             setAiSuggestion(
-              `PIP suggests checking ${suggestionFrontendName}'s alibi.`
+              `PIP suggests checking ${suggestionFrontendName}'s alibi.`,
             );
           } else {
             console.warn(
-              `No frontend mapping found for ${data.most_suspected_suggestion}`
+              `No frontend mapping found for ${data.most_suspected_suggestion}`,
             );
             setAiSuggestion(
-              "The AI has no specific suspect to suggest at this time."
+              "The AI has no specific suspect to suggest at this time.",
             );
           }
         } else {
@@ -332,7 +395,7 @@ function GamePlay() {
   const verifyAlibi = async (suspectName) => {
     console.log(
       `verifyAlibi called for ${suspectName}, verifiedSuspects:`,
-      Array.from(verifiedSuspects)
+      Array.from(verifiedSuspects),
     );
     try {
       // Ensure suspectName is valid and mapped correctly
@@ -345,14 +408,14 @@ function GamePlay() {
       // Double-check verifiedSuspects to prevent duplicate verification
       if (verifiedSuspects.has(suspectName)) {
         throw new Error(
-          `Frontend error: ${suspectName} already in verifiedSuspects`
+          `Frontend error: ${suspectName} already in verifiedSuspects`,
         );
       }
       console.log(
-        `Verifying alibi for ${suspectName} (backend: ${backendSuspectName}) with gameId: ${gameId}`
+        `Verifying alibi for ${suspectName} (backend: ${backendSuspectName}) with gameId: ${gameId}`,
       );
 
-      const url = `https://oblivion-o73e.onrender.com/api/round3_verify_alibi`;
+      const url = `http://127.0.0.1:5001/api/round3_verify_alibi`;
       const requestBody = JSON.stringify({
         suspect_name: backendSuspectName,
         game_id: gameId,
@@ -370,19 +433,19 @@ function GamePlay() {
       if (!res.ok) {
         const errorText = await res.text().catch(() => "No response text");
         console.error(
-          `HTTP error for ${suspectName}: Status: ${res.status}, Response: ${errorText}`
+          `HTTP error for ${suspectName}: Status: ${res.status}, Response: ${errorText}`,
         );
         throw new Error(
           `HTTP error! Status: ${res.status}, Message: ${
             errorText || res.statusText
-          }`
+          }`,
         );
       }
 
       const data = await res.json();
       console.log(
         `Response from /round3_verify_alibi for ${suspectName}:`,
-        data
+        data,
       );
 
       if (data.status === "error") {
@@ -428,7 +491,7 @@ function GamePlay() {
 
   const fetchFinalDeduction = async () => {
     try {
-      const url = `https://oblivion-o73e.onrender.com/api/round4_final_deduction`;
+      const url = `http://127.0.0.1:5001/api/round4_final_deduction?game_id=${encodeURIComponent(gameId)}`;
       console.log(`Fetching ${url} with method GET`);
       const res = await fetch(url, {
         method: "GET",
@@ -436,7 +499,7 @@ function GamePlay() {
 
       if (!res.ok) {
         console.log(
-          `HTTP error! Status: ${res.status}, Status Text: ${res.statusText}`
+          `HTTP error! Status: ${res.status}, Status Text: ${res.statusText}`,
         );
         throw new Error(`HTTP error! Status: ${res.status}`);
       }
@@ -479,7 +542,7 @@ function GamePlay() {
       };
       console.log("Submitting score:", scoreData);
 
-      const res = await fetch("https://oblivion-o73e.onrender.com/submit_score", {
+      const res = await fetch("http://127.0.0.1:5001/submit_score", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -496,7 +559,7 @@ function GamePlay() {
       console.log("Score submission response:", data);
 
       // Fetch leaderboard
-      const leaderboardRes = await fetch("https://oblivion-o73e.onrender.com/leaderboard");
+      const leaderboardRes = await fetch("http://127.0.0.1:5001/leaderboard");
       if (!leaderboardRes.ok) {
         throw new Error("Failed to fetch leaderboard.");
       }
@@ -509,6 +572,32 @@ function GamePlay() {
     } catch (e) {
       console.error("Error submitting score:", e.message);
       setError(e.message);
+    }
+  };
+
+  const markGameComplete = async (status) => {
+    try {
+      const url = `http://127.0.0.1:5001/api/mark_game_complete`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          game_id: gameId,
+          status: status, // "complete"
+          result: status === "success" ? "win" : "loss", // "win" or "loss"
+        }),
+      });
+
+      if (!res.ok) {
+        console.error("Failed to mark game complete:", res.status);
+      } else {
+        const data = await res.json();
+        console.log("Game marked complete:", data);
+      }
+    } catch (e) {
+      console.error("Error marking game complete:", e.message);
     }
   };
 
@@ -525,9 +614,9 @@ function GamePlay() {
         return;
       }
 
-      const url = `https://oblivion-o73e.onrender.com/api/make_guess`;
+      const url = `http://127.0.0.1:5001/api/make_guess`;
       console.log(
-        `Fetching ${url} with method POST for suspect: ${selectedSuspect}, weapon: ${selectedWeapon}, current triesLeft: ${triesLeft}`
+        `Fetching ${url} with method POST for suspect: ${selectedSuspect}, weapon: ${selectedWeapon}, current triesLeft: ${triesLeft}`,
       );
       const res = await fetch(url, {
         method: "POST",
@@ -544,7 +633,7 @@ function GamePlay() {
       if (!res.ok) {
         const errorText = await res.text().catch(() => "No response text");
         console.log(
-          `HTTP error! Status: ${res.status}, Status Text: ${res.statusText}, Response: ${errorText}`
+          `HTTP error! Status: ${res.status}, Status Text: ${res.statusText}, Response: ${errorText}`,
         );
         let errorMessage = res.statusText;
         try {
@@ -554,7 +643,7 @@ function GamePlay() {
           console.log("Failed to parse error response:", parseError);
         }
         throw new Error(
-          `HTTP error! Status: ${res.status}, Message: ${errorMessage}`
+          `HTTP error! Status: ${res.status}, Message: ${errorMessage}`,
         );
       }
 
@@ -574,25 +663,27 @@ function GamePlay() {
             ? data.remaining_tries
             : Math.max(0, prev - 1);
         console.log(
-          `Updating triesLeft: prev=${prev}, newTries=${newTries}, backend remaining_tries=${data.remaining_tries}`
+          `Updating triesLeft: prev=${prev}, newTries=${newTries}, backend remaining_tries=${data.remaining_tries}`,
         );
         return newTries;
       });
 
       if (data.status === "success") {
         console.log(
-          "Correct guess! Stopping timer and showing username prompt."
+          "Correct guess! Stopping timer and showing username prompt.",
         );
-        setTimerStarted(false); // Stop the timer on correct guess
+        setTimerStarted(false);
+        await markGameComplete("success"); // ✅ ADD THIS
         setTimeout(() => {
           setShowUsernamePrompt(true);
         }, 3000);
       } else if (data.status === "incorrect") {
         console.log(
-          `Incorrect guess. Remaining tries: ${data.remaining_tries}, triesLeft: ${triesLeft}`
+          `Incorrect guess. Remaining tries: ${data.remaining_tries}`,
         );
         if (triesLeft - 1 <= 0 || data.remaining_tries === 0) {
           console.log("No tries left. Game over.");
+          await markGameComplete("game_over"); // ✅ ADD THIS
           setTimeout(() => {
             setShowUsernamePrompt(true);
           }, 1000);
@@ -603,6 +694,8 @@ function GamePlay() {
         }
       } else if (data.status === "game_over") {
         console.log("Backend signaled game_over. Ending game.");
+        await markGameComplete("game_over"); // ✅ ADD THIS
+
         setTimerStarted(false);
         setTimeout(() => {
           setShowUsernamePrompt(true);
@@ -628,7 +721,7 @@ function GamePlay() {
         const dialogueSet = getDialogueSet();
         if (event.code === "Space" || event.code === "ArrowRight") {
           setDialogueIndex((prev) =>
-            prev < dialogueSet.length - 1 ? prev + 1 : prev
+            prev < dialogueSet.length - 1 ? prev + 1 : prev,
           );
         }
         if (event.code === "ArrowLeft") {
@@ -646,7 +739,7 @@ function GamePlay() {
       if (step === 3 && AIPop) {
         if (event.code === "Space" || event.code === "ArrowRight") {
           setAIIndex((prev) =>
-            prev < AI_dialogues.length - 1 ? prev + 1 : prev
+            prev < AI_dialogues.length - 1 ? prev + 1 : prev,
           );
         }
         if (event.code === "ArrowLeft") {
@@ -770,7 +863,7 @@ function GamePlay() {
 
     othersStatements.forEach((statement) => {
       const accuserFrontendName = Object.keys(SUSPECT_NAME_MAPPING).find(
-        (key) => SUSPECT_NAME_MAPPING[key] === statement.accuser
+        (key) => SUSPECT_NAME_MAPPING[key] === statement.accuser,
       );
       dialogue.push({
         char: "detective",
@@ -818,7 +911,7 @@ function GamePlay() {
       // Fallback if backend dialogues are missing
       if (backendUpToRebuttal.length < (isKate ? 7 : 6)) {
         console.warn(
-          `Incomplete backend dialogues for ${suspectName}, using fallback`
+          `Incomplete backend dialogues for ${suspectName}, using fallback`,
         );
         const fallbackDialogues = [
           {
@@ -829,10 +922,10 @@ function GamePlay() {
           {
             id: "intro",
             char: suspectName,
-            text: "I’m just here, detective. No trouble.",
+            text: "I'm just here, detective. No trouble.",
           },
           ...(isKate
-            ? [{ id: "intro", char: "kate", text: "Let’s make this quick." }]
+            ? [{ id: "intro", char: "kate", text: "Let's make this quick." }]
             : []),
           {
             id: "alibi",
@@ -847,7 +940,7 @@ function GamePlay() {
           {
             id: "alibi",
             char: "detective",
-            text: "That’s a bit vague. Care to clarify?",
+            text: "That's a bit vague. Care to clarify?",
           },
           {
             id: "alibi",
@@ -906,7 +999,7 @@ function GamePlay() {
 
   const prevSuspect = () => {
     setCurrentSuspectIndex(
-      (prev) => (prev - 1 + suspect_cards.length) % suspect_cards.length
+      (prev) => (prev - 1 + suspect_cards.length) % suspect_cards.length,
     );
     setDialogueIndex(0);
   };
@@ -917,7 +1010,7 @@ function GamePlay() {
 
   const prevWeapon = () => {
     setCurrentWeapon(
-      (prev) => (prev - 1 + weapon_cards.length) % weapon_cards.length
+      (prev) => (prev - 1 + weapon_cards.length) % weapon_cards.length,
     );
   };
 
@@ -970,55 +1063,62 @@ function GamePlay() {
           {guessResult?.status === "success" ? (
             <>
               <div className="overlay" style={{ zIndex: "5000" }} />
-              <img src={arrest} style={{
-                position: "fixed",
-                top: "20%",
-                left: "26%",
-                width: "40%",
-                zIndex: "5002",
-              }}/>
+              <img
+                src={arrest}
+                style={{
+                  position: "fixed",
+                  top: "20%",
+                  left: "26%",
+                  width: "40%",
+                  zIndex: "5002",
+                }}
+              />
 
-              <Confetti width={width} height={height}  style={{ zIndex: 5001 }}/>
+              <Confetti
+                width={width}
+                height={height}
+                style={{ zIndex: 5001 }}
+              />
 
               {record && (
                 <div className="username-popup" style={{ zIndex: "5100" }}>
-                <p
-                  className="section-header"
-                  style={{
-                    fontSize: "clamp(16px, 2vw, 20px)",
-                    margin: "0 0 20px 0",
-                    textShadow: "0px 0px 10px black",
-                    border: "none",
-                    backgroundColor: "transparent",
-                  }}
-                >
-                  SUBMIT YOUR SCORES?
-                </p>
-                <input
-                  type="text"
-                  className="username-input"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Your username"
-                />
-                <div
-                  style={{ display: "flex", gap: "10px", marginTop: "20px" }}
-                >
-                  <button className="username-submit" onClick={submitScore}>
-                    SUBMIT SCORE
-                  </button>
-                  <button
-                    className="username-submit"
+                  <p
+                    className="section-header"
                     style={{
-                      backgroundColor: "red",
-                      border: "dashed 3px rgb(132, 4, 4)",
+                      fontSize: "clamp(16px, 2vw, 20px)",
+                      margin: "0 0 20px 0",
+                      textShadow: "0px 0px 10px black",
+                      border: "none",
+                      backgroundColor: "transparent",
                     }}
-                    onClick={navigateToHome}
                   >
-                    RETURN TO HOME
-                  </button>
+                    SUBMIT YOUR SCORES?
+                  </p>
+                  <input
+                    type="text"
+                    className="username-input"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="Your username"
+                  />
+                  <div
+                    style={{ display: "flex", gap: "10px", marginTop: "20px" }}
+                  >
+                    <button className="username-submit" onClick={submitScore}>
+                      SUBMIT SCORE
+                    </button>
+                    <button
+                      className="username-submit"
+                      style={{
+                        backgroundColor: "red",
+                        border: "dashed 3px rgb(132, 4, 4)",
+                      }}
+                      onClick={navigateToHome}
+                    >
+                      RETURN TO HOME
+                    </button>
+                  </div>
                 </div>
-              </div>
               )}
             </>
           ) : (
@@ -1158,22 +1258,22 @@ function GamePlay() {
                 </div>
 
                 {dialogueIndex === 0 && (
-          <p
-            style={{
-              position: "absolute",
-              top: "41%",
-              left: "48vw",
-              fontSize: "15px",
-              fontFamily: "Montserrat",
-              fontWeight: "bold",
-              zIndex: "2000",
-              color: "rgb(210, 210, 212)",
-              textShadow: "2px 0px 3px black"
-            }}
-          >
-            <i>use SPACE OR left and right arrow keys to navigate</i>
-          </p>
-        )}
+                  <p
+                    style={{
+                      position: "absolute",
+                      top: "41%",
+                      left: "48vw",
+                      fontSize: "15px",
+                      fontFamily: "Montserrat",
+                      fontWeight: "bold",
+                      zIndex: "2000",
+                      color: "rgb(210, 210, 212)",
+                      textShadow: "2px 0px 3px black",
+                    }}
+                  >
+                    <i>use SPACE OR left and right arrow keys to navigate</i>
+                  </p>
+                )}
 
                 {currentDialogue[dialogueIndex] ? (
                   <>
@@ -1301,22 +1401,22 @@ function GamePlay() {
                 </div>
 
                 {dialogueIndex === 0 && (
-          <p
-            style={{
-              position: "absolute",
-              top: "84%",
-              left: "44vw",
-              fontSize: "15px",
-              fontFamily: "Montserrat",
-              fontWeight: "bold",
-              zIndex: "2000",
-              color: "rgb(210, 210, 212)",
-              textShadow: "2px 0px 3px black"
-            }}
-          >
-            <i>use SPACE OR left and right arrow keys to navigate</i>
-          </p>
-        )}
+                  <p
+                    style={{
+                      position: "absolute",
+                      top: "84%",
+                      left: "44vw",
+                      fontSize: "15px",
+                      fontFamily: "Montserrat",
+                      fontWeight: "bold",
+                      zIndex: "2000",
+                      color: "rgb(210, 210, 212)",
+                      textShadow: "2px 0px 3px black",
+                    }}
+                  >
+                    <i>use SPACE OR left and right arrow keys to navigate</i>
+                  </p>
+                )}
 
                 <p
                   className={
@@ -1331,26 +1431,30 @@ function GamePlay() {
                             suspectNames[currentSuspectIndex] === "chris"
                               ? "rgb(236, 224, 121)"
                               : suspectNames[currentSuspectIndex] === "jason"
-                              ? "rgb(139, 216, 239)"
-                              : suspectNames[currentSuspectIndex] === "kate"
-                              ? "rgb(190, 190, 190)"
-                              : suspectNames[currentSuspectIndex] === "poppy"
-                              ? "rgb(119, 207, 136)"
-                              : suspectNames[currentSuspectIndex] === "violet"
-                              ? "rgb(171, 121, 236)"
-                              : "rgb(238, 142, 216)",
+                                ? "rgb(139, 216, 239)"
+                                : suspectNames[currentSuspectIndex] === "kate"
+                                  ? "rgb(190, 190, 190)"
+                                  : suspectNames[currentSuspectIndex] ===
+                                      "poppy"
+                                    ? "rgb(119, 207, 136)"
+                                    : suspectNames[currentSuspectIndex] ===
+                                        "violet"
+                                      ? "rgb(171, 121, 236)"
+                                      : "rgb(238, 142, 216)",
                           borderColor:
                             suspectNames[currentSuspectIndex] === "chris"
                               ? "rgb(255, 196, 0)"
                               : suspectNames[currentSuspectIndex] === "jason"
-                              ? "rgb(2, 3, 80)"
-                              : suspectNames[currentSuspectIndex] === "kate"
-                              ? "rgb(73, 73, 73)"
-                              : suspectNames[currentSuspectIndex] === "poppy"
-                              ? "rgb(27, 120, 38)"
-                              : suspectNames[currentSuspectIndex] === "violet"
-                              ? "rgb(77, 2, 138)"
-                              : "rgb(203, 0, 132)",
+                                ? "rgb(2, 3, 80)"
+                                : suspectNames[currentSuspectIndex] === "kate"
+                                  ? "rgb(73, 73, 73)"
+                                  : suspectNames[currentSuspectIndex] ===
+                                      "poppy"
+                                    ? "rgb(27, 120, 38)"
+                                    : suspectNames[currentSuspectIndex] ===
+                                        "violet"
+                                      ? "rgb(77, 2, 138)"
+                                      : "rgb(203, 0, 132)",
                         }
                       : {}
                   }
@@ -1586,22 +1690,22 @@ function GamePlay() {
                 </div>
 
                 {showDialogue && dialogueIndex === 0 && (
-          <p
-            style={{
-              position: "absolute",
-              top: "81%",
-              left: "44vw",
-              fontSize: "15px",
-              fontFamily: "Montserrat",
-              fontWeight: "bold",
-              zIndex: "2000",
-              color: "rgb(210, 210, 212)",
-              textShadow: "2px 0px 3px black"
-            }}
-          >
-            <i>use SPACE OR left and right arrow keys to navigate</i>
-          </p>
-        )}
+                  <p
+                    style={{
+                      position: "absolute",
+                      top: "81%",
+                      left: "44vw",
+                      fontSize: "15px",
+                      fontFamily: "Montserrat",
+                      fontWeight: "bold",
+                      zIndex: "2000",
+                      color: "rgb(210, 210, 212)",
+                      textShadow: "2px 0px 3px black",
+                    }}
+                  >
+                    <i>use SPACE OR left and right arrow keys to navigate</i>
+                  </p>
+                )}
 
                 <div
                   style={{
@@ -1662,27 +1766,27 @@ function GamePlay() {
                                   suspect === "chris"
                                     ? "rgb(236, 224, 121)"
                                     : suspect === "jason"
-                                    ? "rgb(139, 216, 239)"
-                                    : suspect === "kate"
-                                    ? "rgb(190, 190, 190)"
-                                    : suspect === "poppy"
-                                    ? "rgb(119, 207, 136)"
-                                    : suspect === "violet"
-                                    ? "rgb(171, 121, 236)"
-                                    : "rgb(238, 142, 216)",
+                                      ? "rgb(139, 216, 239)"
+                                      : suspect === "kate"
+                                        ? "rgb(190, 190, 190)"
+                                        : suspect === "poppy"
+                                          ? "rgb(119, 207, 136)"
+                                          : suspect === "violet"
+                                            ? "rgb(171, 121, 236)"
+                                            : "rgb(238, 142, 216)",
                                 color: "black",
                                 borderColor:
                                   suspect === "chris"
                                     ? "rgb(255, 196, 0)"
                                     : suspect === "jason"
-                                    ? "rgb(2, 3, 80)"
-                                    : suspect === "kate"
-                                    ? "rgb(73, 73, 73)"
-                                    : suspect === "poppy"
-                                    ? "rgb(27, 120, 38)"
-                                    : suspect === "violet"
-                                    ? "rgb(77, 2, 138)"
-                                    : "rgb(203, 0, 132)",
+                                      ? "rgb(2, 3, 80)"
+                                      : suspect === "kate"
+                                        ? "rgb(73, 73, 73)"
+                                        : suspect === "poppy"
+                                          ? "rgb(27, 120, 38)"
+                                          : suspect === "violet"
+                                            ? "rgb(77, 2, 138)"
+                                            : "rgb(203, 0, 132)",
                               }}
                               onClick={() => {
                                 setSelectedSuspect(suspect);
@@ -1736,26 +1840,26 @@ function GamePlay() {
                               selectedSuspect === "chris"
                                 ? "rgb(236, 224, 121)"
                                 : selectedSuspect === "jason"
-                                ? "rgb(139, 216, 239)"
-                                : selectedSuspect === "kate"
-                                ? "rgb(190, 190, 190)"
-                                : selectedSuspect === "poppy"
-                                ? "rgb(119, 207, 136)"
-                                : selectedSuspect === "violet"
-                                ? "rgb(171, 121, 236)"
-                                : "rgb(238, 142, 216)",
+                                  ? "rgb(139, 216, 239)"
+                                  : selectedSuspect === "kate"
+                                    ? "rgb(190, 190, 190)"
+                                    : selectedSuspect === "poppy"
+                                      ? "rgb(119, 207, 136)"
+                                      : selectedSuspect === "violet"
+                                        ? "rgb(171, 121, 236)"
+                                        : "rgb(238, 142, 216)",
                             borderColor:
                               selectedSuspect === "chris"
                                 ? "rgb(255, 196, 0)"
                                 : selectedSuspect === "jason"
-                                ? "rgb(2, 3, 80)"
-                                : selectedSuspect === "kate"
-                                ? "rgb(73, 73, 73)"
-                                : selectedSuspect === "poppy"
-                                ? "rgb(27, 120, 38)"
-                                : selectedSuspect === "violet"
-                                ? "rgb(77, 2, 138)"
-                                : "rgb(203, 0, 132)",
+                                  ? "rgb(2, 3, 80)"
+                                  : selectedSuspect === "kate"
+                                    ? "rgb(73, 73, 73)"
+                                    : selectedSuspect === "poppy"
+                                      ? "rgb(27, 120, 38)"
+                                      : selectedSuspect === "violet"
+                                        ? "rgb(77, 2, 138)"
+                                        : "rgb(203, 0, 132)",
                           }
                         : {}
                     }
@@ -1969,27 +2073,27 @@ function GamePlay() {
                                   suspect === "chris"
                                     ? "rgb(236, 224, 121)"
                                     : suspect === "jason"
-                                    ? "rgb(139, 216, 239)"
-                                    : suspect === "kate"
-                                    ? "rgb(190, 190, 190)"
-                                    : suspect === "poppy"
-                                    ? "rgb(119, 207, 136)"
-                                    : suspect === "violet"
-                                    ? "rgb(171, 121, 236)"
-                                    : "rgb(238, 142, 216)",
+                                      ? "rgb(139, 216, 239)"
+                                      : suspect === "kate"
+                                        ? "rgb(190, 190, 190)"
+                                        : suspect === "poppy"
+                                          ? "rgb(119, 207, 136)"
+                                          : suspect === "violet"
+                                            ? "rgb(171, 121, 236)"
+                                            : "rgb(238, 142, 216)",
                                 color: "black",
                                 borderColor:
                                   suspect === "chris"
                                     ? "rgb(255, 196, 0)"
                                     : suspect === "jason"
-                                    ? "rgb(2, 3, 80)"
-                                    : suspect === "kate"
-                                    ? "rgb(73, 73, 73)"
-                                    : suspect === "poppy"
-                                    ? "rgb(27, 120, 38)"
-                                    : suspect === "violet"
-                                    ? "rgb(77, 2, 138)"
-                                    : "rgb(203, 0, 132)",
+                                      ? "rgb(2, 3, 80)"
+                                      : suspect === "kate"
+                                        ? "rgb(73, 73, 73)"
+                                        : suspect === "poppy"
+                                          ? "rgb(27, 120, 38)"
+                                          : suspect === "violet"
+                                            ? "rgb(77, 2, 138)"
+                                            : "rgb(203, 0, 132)",
                                 opacity: verifiedSuspects.has(suspect)
                                   ? 0.5
                                   : 1,
@@ -2021,94 +2125,94 @@ function GamePlay() {
                   </p>
                 ) : null}
 
-{showDialogue && dialogueIndex === 0 && (
-          <p
-            style={{
-              position: "absolute",
-              top: "78%",
-              left: "44vw",
-              fontSize: "15px",
-              fontFamily: "Montserrat",
-              fontWeight: "bold",
-              zIndex: "2000",
-              color: "rgb(210, 210, 212)",
-              textShadow: "2px 0px 3px black"
-            }}
-          >
-            <i>use SPACE OR left and right arrow keys to navigate</i>
-          </p>
-        )}
+                {showDialogue && dialogueIndex === 0 && (
+                  <p
+                    style={{
+                      position: "absolute",
+                      top: "78%",
+                      left: "44vw",
+                      fontSize: "15px",
+                      fontFamily: "Montserrat",
+                      fontWeight: "bold",
+                      zIndex: "2000",
+                      color: "rgb(210, 210, 212)",
+                      textShadow: "2px 0px 3px black",
+                    }}
+                  >
+                    <i>use SPACE OR left and right arrow keys to navigate</i>
+                  </p>
+                )}
 
                 {showDialogue &&
                   dialogueIndex === currentDialogue.length - 1 && (
                     <>
                       <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "row",
-                        gap: 0,
-                        position: "absolute",
-                        top: "65%",
-                        zIndex: "1400",
-                        left: "14%",
-                      }}
-                    >
-                      <img
-                        src={down}
-                        style={{ width: "8%" }}
-                        alt="Down Arrow"
-                      />
-                      <div
-                        className="warning"
                         style={{
-                          margin: 0,
-                          width: "120px",
-                          marginLeft: "-10px",
-                          textShadow: "2px 2px 2px grey",
+                          display: "flex",
+                          flexDirection: "row",
+                          gap: 0,
+                          position: "absolute",
+                          top: "65%",
+                          zIndex: "1400",
+                          left: "14%",
                         }}
                       >
-                        NEXT SUSPECT
-                      </div>
-                    </div>
-
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "row",
-                        position: "absolute",
-                        top: "73%",
-                        zIndex: "1400",
-                        left: "8%",
-                      }}
-                    >
-                      <button
-                        className="next-button"
-                        style={{
-                          backgroundColor: "transparent",
-                          border: "none",
-                        }}
-                        onClick={() => {
-                          setShowDialogue(false);
-                          setDialogueIndex(0);
-                          setSelectedSuspect("");
-                        }}
-                      >
+                        <img
+                          src={down}
+                          style={{ width: "8%" }}
+                          alt="Down Arrow"
+                        />
                         <div
-                          className="next-button"
+                          className="warning"
                           style={{
-                            padding: "10px 5px",
-                            fontSize: "14px",
-                            maxWidth: "100px",
-                            position: "fixed",
-                            bottom: "9vw",
-                            left: "14.1%",
-                            top: "auto",
+                            margin: 0,
+                            width: "120px",
+                            marginLeft: "-10px",
+                            textShadow: "2px 2px 2px grey",
                           }}
                         >
-                          CHANGE SUSPECT
+                          NEXT SUSPECT
                         </div>
-                      </button>
-                    </div>
+                      </div>
+
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "row",
+                          position: "absolute",
+                          top: "73%",
+                          zIndex: "1400",
+                          left: "8%",
+                        }}
+                      >
+                        <button
+                          className="next-button"
+                          style={{
+                            backgroundColor: "transparent",
+                            border: "none",
+                          }}
+                          onClick={() => {
+                            setShowDialogue(false);
+                            setDialogueIndex(0);
+                            setSelectedSuspect("");
+                          }}
+                        >
+                          <div
+                            className="next-button"
+                            style={{
+                              padding: "10px 5px",
+                              fontSize: "14px",
+                              maxWidth: "100px",
+                              position: "fixed",
+                              bottom: "9vw",
+                              left: "14.1%",
+                              top: "auto",
+                            }}
+                          >
+                            CHANGE SUSPECT
+                          </div>
+                        </button>
+                      </div>
                     </>
                   )}
 
@@ -2135,7 +2239,7 @@ function GamePlay() {
                           margin: 0,
                           width: "150px",
                           textShadow: "2px 2px 2px grey",
-                          marginLeft: "-10px"
+                          marginLeft: "-10px",
                         }}
                       >
                         PROCEED TO NEXT STAGE
@@ -2291,7 +2395,7 @@ function GamePlay() {
                   </>
                 )}
 
-                {notesOpen && (
+                {notesOpen && finalDeductionData && (
                   <>
                     <div
                       className="overlay"
@@ -2390,27 +2494,27 @@ function GamePlay() {
                               suspect === "chris"
                                 ? "rgb(236, 224, 121)"
                                 : suspect === "jason"
-                                ? "rgb(139, 216, 239)"
-                                : suspect === "kate"
-                                ? "rgb(190, 190, 190)"
-                                : suspect === "poppy"
-                                ? "rgb(119, 207, 136)"
-                                : suspect === "violet"
-                                ? "rgb(171, 121, 236)"
-                                : "rgb(238, 142, 216)",
+                                  ? "rgb(139, 216, 239)"
+                                  : suspect === "kate"
+                                    ? "rgb(190, 190, 190)"
+                                    : suspect === "poppy"
+                                      ? "rgb(119, 207, 136)"
+                                      : suspect === "violet"
+                                        ? "rgb(171, 121, 236)"
+                                        : "rgb(238, 142, 216)",
                             color: "black",
                             borderColor:
                               suspect === "chris"
                                 ? "rgb(255, 196, 0)"
                                 : suspect === "jason"
-                                ? "rgb(2, 3, 80)"
-                                : suspect === "kate"
-                                ? "rgb(73, 73, 73)"
-                                : suspect === "poppy"
-                                ? "rgb(27, 120, 38)"
-                                : suspect === "violet"
-                                ? "rgb(77, 2, 138)"
-                                : "rgb(203, 0, 132)",
+                                  ? "rgb(2, 3, 80)"
+                                  : suspect === "kate"
+                                    ? "rgb(73, 73, 73)"
+                                    : suspect === "poppy"
+                                      ? "rgb(27, 120, 38)"
+                                      : suspect === "violet"
+                                        ? "rgb(77, 2, 138)"
+                                        : "rgb(203, 0, 132)",
                             opacity: selectedSuspect === suspect ? 1 : 0.7,
                             cursor: "pointer",
                           }}
@@ -2598,26 +2702,26 @@ function GamePlay() {
                       suspect === "chris"
                         ? "rgba(236, 224, 121, 0.8)"
                         : suspect === "jason"
-                        ? "rgba(139, 216, 239, 0.8)"
-                        : suspect === "kate"
-                        ? "rgba(190, 190, 190, 0.8)"
-                        : suspect === "poppy"
-                        ? "rgba(119, 207, 136, 0.8)"
-                        : suspect === "violet"
-                        ? "rgba(171, 121, 236, 0.8)"
-                        : "rgba(238, 142, 216, 0.8)",
+                          ? "rgba(139, 216, 239, 0.8)"
+                          : suspect === "kate"
+                            ? "rgba(190, 190, 190, 0.8)"
+                            : suspect === "poppy"
+                              ? "rgba(119, 207, 136, 0.8)"
+                              : suspect === "violet"
+                                ? "rgba(171, 121, 236, 0.8)"
+                                : "rgba(238, 142, 216, 0.8)",
                     borderColor:
                       suspect === "chris"
                         ? "rgb(255, 196, 0)"
                         : suspect === "jason"
-                        ? "rgb(2, 3, 80)"
-                        : suspect === "kate"
-                        ? "rgb(73, 73, 73)"
-                        : suspect === "poppy"
-                        ? "rgb(27, 120, 38)"
-                        : suspect === "violet"
-                        ? "rgb(77, 2, 138)"
-                        : "rgb(203, 0, 132)",
+                          ? "rgb(2, 3, 80)"
+                          : suspect === "kate"
+                            ? "rgb(73, 73, 73)"
+                            : suspect === "poppy"
+                              ? "rgb(27, 120, 38)"
+                              : suspect === "violet"
+                                ? "rgb(77, 2, 138)"
+                                : "rgb(203, 0, 132)",
                   }}
                 >
                   <p className="alibi-text">
